@@ -1,5 +1,6 @@
 import os
 import json
+import subprocess
 import time
 import typer
 from datetime import timedelta
@@ -9,9 +10,6 @@ from translation_service import translate_srt_file
 from utils import get_video_title, normalize_segments, write_srt_pretty, shift_srt_timestamps
 
 app = typer.Typer()
-
-# Default model with timestamps (Mandarin Chinese)
-FUNASR_MODEL_ID = "manyeyes/paraformer-seaco-large-zh-timestamp-onnx-offline"
 
 def ensure_wav_16k(src_path: Path) -> Path:
     """Convert to mono 16 kHz WAV (recommended for FunASR ONNX)."""
@@ -105,9 +103,8 @@ def funasr_transcribe(audio_path: Path):
 @app.command()
 def transcribe(
     url: str = typer.Argument(..., help="YouTube URL to transcribe"),
-    language: str = typer.Option("en", "--language", "-l", help="Language code ('en', 'pl' for English or Polish)"),
     skip_download: bool = typer.Option(False, "--skip-download", "-s", help="Skip audio download"),
-    skip_whisper: bool = typer.Option(False, "--skip-whisper", "-w", help="Skip ASR (FunASR) step"),
+    skip_asr: bool = typer.Option(False, "--skip-asr", "-w", help="Skip ASR (FunASR) step"),
     output_dir: str = typer.Option("output", "--output-dir", "-o", help="Base output directory"),
 ):
     """Transcribe and translate YouTube video from Chinese to English (FunASR)"""
@@ -134,10 +131,10 @@ def transcribe(
     result = None
     segments = None
 
-    if skip_whisper:
+    if skip_asr:
         print("Skipping ASR (FunASR).")
     else:
-        print("Starting transcription with FunASR (Paraformer ONNX, ZH)...")
+        print("Starting transcription with FunASR...")
         audio_path = Path("audio.mp3") if Path("audio.mp3").exists() else Path("audio.wav")
         result = funasr_transcribe(audio_path=audio_path)
 
@@ -145,7 +142,7 @@ def transcribe(
     print(f"Transcription completed in {timedelta(seconds=elapsed_time)}")
 
     # Processing results
-    if skip_whisper:
+    if skip_asr:
         print("Warning: ASR was skipped, no transcription available")
         return
     else:
@@ -156,7 +153,7 @@ def transcribe(
     print(f"Chinese transcription (first 100 chars): {full_text[:100]}")
 
     # Save
-    if not skip_whisper:
+    if not skip_asr:
         with open("transcription.json", "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
 
@@ -166,22 +163,12 @@ def transcribe(
         else:
             print("No segments to write to SRT.")
 
-    # Translation
-    start_time = time.time()
-    print("Starting translation from Chinese...")
-
-    if os.path.exists("transcription.srt"):
-        translate_srt_file("transcription.srt", "translation.srt", language)
-        print("SRT translation completed.")
-
-    elapsed_time = time.time() - start_time
-    print(f"Translation completed in {timedelta(seconds=elapsed_time)}")
-
 
 @app.command()
 def translate(
     transcription_dir: str = typer.Argument(..., help="Directory containing transcription.srt file"),
     language: str = typer.Option("en", "--language", "-l", help="Language code ('en', 'pl' for English or Polish)"),
+    batch_size: int = typer.Option(5, "--batch-size", "-b", help="Number of segments to translate per batch (default: 5)"),
 ):
     """Translate existing transcription SRT file without running transcription"""
     
@@ -214,7 +201,7 @@ def translate(
         print(f"Starting translation to {language}...")
         
         output_file = "translation.srt"
-        translate_srt_file("transcription.srt", output_file, language)
+        translate_srt_file("transcription.srt", output_file, language, context_window=3, batch_size=batch_size)
         
         elapsed_time = time.time() - start_time
         print(f"Translation completed in {timedelta(seconds=elapsed_time)}")
@@ -234,72 +221,140 @@ def generate_video(
     outline_color: str = typer.Option("black", "--outline-color", help="Subtitle outline color"),
     offset_seconds: float = typer.Option(18.0, "--offset", help="Subtitle timing offset in seconds (to skip intro)"),
 ):
-    """Generate MP4 video with embedded SRT subtitles"""
-    
-    # Get video title and setup output directory
+    """Generate MP4 video that burns SRT, caps height at 720px (no upscaling),
+    and preserves audio. Requires ffmpeg with libass enabled."""
+
+    # Get video title and prepare output directory
     video_title = get_video_title(url)
     print(f"Video title: {video_title}")
-    
+
     output_path = Path(output_dir) / video_title
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
     original_cwd = Path.cwd()
     os.chdir(output_path)
     print(f"Working directory: {output_path.absolute()}")
-    
+
     try:
-        # Check if SRT file exists
+        # Ensure SRT exists
         srt_path = Path(srt_file)
         if not srt_path.exists():
             print(f"Error: SRT file '{srt_file}' not found in {output_path}")
-            print("Available files:")
+            print("Available SRT files in this folder:")
             for f in output_path.glob("*.srt"):
                 print(f"  - {f.name}")
             return
-        
         print(f"Using SRT file: {srt_path.name}")
-        
-        # Shift SRT timestamps to account for intro
+
+        # Shift SRT timestamps
         shifted_srt = f"{srt_path.stem}_shifted{srt_path.suffix}"
         print(f"Shifting subtitles by {offset_seconds} seconds...")
-        if not shift_srt_timestamps(srt_file, shifted_srt, offset_seconds):
+        if not shift_srt_timestamps(srt_path.name, shifted_srt, offset_seconds):
             print("Error: Failed to shift subtitle timestamps")
             return
-        
-        # Download video
-        video_filename = f"{video_title}.webm"
-        if not Path(video_filename).exists():
-            print("Downloading video...")
-            download_cmd = f'yt-dlp --format "best[height<=720]" --output "{video_filename}" "{url}"'
-            result = os.system(download_cmd)
-            if result != 0:
-                print("Error: Failed to download video")
+
+        # Download video+audio (prefer >=1080p → 720p → lower). Merge to MKV for codec safety.
+        merged_base = f"{video_title}"
+        merged_mkv = Path(f"{merged_base}.mkv")
+        merged_mp4 = Path(f"{merged_base}.mp4")
+
+        input_path = None
+        for candidate in (merged_mp4, merged_mkv):
+            if candidate.exists():
+                input_path = candidate
+                break
+
+        if input_path is None:
+            print("Downloading video (bestvideo+bestaudio)...")
+            fmt = (
+                "bestvideo[height>=1080]+bestaudio/"
+                "bestvideo[height=720]+bestaudio/"
+                "best"
+            )
+            try:
+                subprocess.run(
+                    [
+                        "yt-dlp",
+                        "-f", fmt,
+                        "--merge-output-format", "mkv",
+                        "--output", f"{merged_base}.%(ext)s",
+                        "--no-playlist",
+                        url,
+                    ],
+                    check=True,
+                )
+            except subprocess.CalledProcessError:
+                print("Error: Failed to download/merge video")
                 return
+
+            if merged_mkv.exists():
+                input_path = merged_mkv
+            elif merged_mp4.exists():
+                input_path = merged_mp4
+            else:
+                # Fallback search
+                for ext in (".mp4", ".mkv", ".webm", ".m4v"):
+                    c = Path(f"{merged_base}{ext}")
+                    if c.exists():
+                        input_path = c
+                        break
+                if input_path is None:
+                    print("Error: Download completed but merged file not found")
+                    return
         else:
-            print(f"Video already exists: {video_filename}")
-        
-        # Generate video with subtitles using ffmpeg
+            print(f"Using existing downloaded file: {input_path.name}")
+
+        # Build subtitle style (ASS keys). libass renders SRT → ASS automatically.
+        subs_style = (
+            f"FontSize={font_size},"
+            f"PrimaryColour=&H{_color_to_hex(font_color)}&,"
+            f"OutlineColour=&H{_color_to_hex(outline_color)}&,Outline=2"
+        )
+        # Prepare SRT path for libavfilter parser
+        subs_path_for_filter = Path(shifted_srt).as_posix().replace("'", r"\'")
+
+        # Filtergraph:
+        # 1) scale: cap height at 720 (no upscaling). Width auto, even, keep AR
+        #    Using -2 chooses closest even width; see ffmpeg scaling docs/examples.
+        # 2) setsar=1 to normalize sample aspect ratio (avoids odd stretches)
+        # 3) subtitles (libass) to burn SRT
+        vf_chain = (
+            "scale=-2:'min(720,ih)':flags=lanczos,"
+            "setsar=1,"
+            f"subtitles=filename='{subs_path_for_filter}':force_style='{subs_style}'"
+        )
+
+        # Output file
         output_video = f"{video_title}_with_subtitles.mp4"
         print(f"Generating video with subtitles: {output_video}")
-        
-        # FFmpeg command to embed subtitles (use shifted SRT)
-        ffmpeg_cmd = (
-            f'ffmpeg -y -i "{video_filename}" -vf '
-            f'"subtitles={shifted_srt}:force_style=\'FontSize={font_size},'
-            f'PrimaryColour=&H{_color_to_hex(font_color)}&,'
-            f'OutlineColour=&H{_color_to_hex(outline_color)}&,Outline=2\'" '
-            f'-c:a copy "{output_video}"'
-        )
-        
-        print("Running ffmpeg...")
-        result = os.system(ffmpeg_cmd)
-        
-        if result == 0:
-            print(f"✓ Video with subtitles generated successfully: {output_video}")
-            print(f"Output path: {output_path / output_video}")
-        else:
+
+        # Encode H.264 + AAC. Map first video and optional audio (no index → any audio).
+        # If input has no audio, ffmpeg will just omit it (no b:a warning thanks to conditional map).
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-hide_banner", "-loglevel", "warning",
+                    "-y",
+                    "-i", str(input_path),
+                    "-map", "0:v:0",
+                    "-map", "0:a?",
+                    "-vf", vf_chain,
+                    "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-ac", "2", "-b:a", "192k",
+                    "-movflags", "+faststart",
+                    "-shortest",
+                    output_video,
+                ],
+                check=True,
+            )
+        except subprocess.CalledProcessError:
             print("Error: Failed to generate video with subtitles")
-            
+            return
+
+        print(f"✓ Video with subtitles generated successfully: {output_video}")
+        print(f"Output path: {output_path / output_video}")
+
     finally:
         os.chdir(original_cwd)
 

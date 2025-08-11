@@ -70,6 +70,8 @@ A Python project for Chinese-to-English translations (SRT subtitles) for each ep
     uv run main.py translate output/{video_title} --language pl
     ```
 
+During the transcription step, there is no verbose output, you can't monitor the progress. Please be patient, as it may take a while depending on the length of the source video.
+
 ## Output
 
 The output will be saved in the `output/{video_title}` directory, with the following files:

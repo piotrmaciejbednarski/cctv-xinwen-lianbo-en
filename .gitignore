@@ -1,0 +1,16 @@
+# Cache files
+__pycache__
+.cache
+
+# macOS specific files
+.DS_Store
+
+# Rope project files
+.ropeproject
+
+# Project specific files
+manual_transcription
+*.mp3
+*.wav
+*.mp4
+*.webm

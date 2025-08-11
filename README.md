@@ -35,13 +35,13 @@ A Python project for Chinese-to-English translations (SRT subtitles) for each ep
 3. Go to [Youtube playlist page](https://www.youtube.com/playlist?list=PL0eGJygpmOH5xQuy8fpaOvKrenoCsWrKh) and copy the specific URL of the episode you want to download, then run for example:
 
     ```bash
-    python main.py "https://www.youtube.com/watch?v=LtcEtnM6e34"
+    uv run main.py "https://www.youtube.com/watch?v=LtcEtnM6e34"
     ```
 
     If you want SRT translation in Polish, you can run:
 
     ```bash
-    python main.py "https://www.youtube.com/watch?v=LtcEtnM6e34" --language pl
+    uv run main.py "https://www.youtube.com/watch?v=LtcEtnM6e34" --language pl
     ```
 
 ## Output

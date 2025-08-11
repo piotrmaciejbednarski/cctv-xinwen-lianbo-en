@@ -14,3 +14,7 @@ manual_transcription
 *.wav
 *.mp4
 *.webm
+.venv
+
+# Environment variable files
+.env

@@ -5,8 +5,9 @@ A Python project for Chinese-to-English translations (SRT subtitles) for each ep
 ## Dependencies
 
 - Python 3.8+
-- `yt-dlp` and `ffmpeg` installed in global environment
+- `yt-dlp`, `uv` and `ffmpeg` installed in global environment
 - `funasr` (transcription using Chinese ASR model)
+- `dotenv` (for environment variable management)
 - `google-genai` (translation using Gemini 2.5 Flash model)
 - `typer`
 - `torchaudio`
@@ -14,27 +15,30 @@ A Python project for Chinese-to-English translations (SRT subtitles) for each ep
 
 ## Usage
 
-Set `GEMINI_API_KEY` environment variable to your Google Gemini API key (https://aistudio.google.com/apikey).
+1. Install the required dependencies using [uv](https://docs.astral.sh/uv/getting-started/installation/):
 
-```bash
-export GEMINI_API_KEY=... # Your Google Gemini API key
-```
+    ```bash
+    uv sync
+    ```
 
-Go to [Youtube playlist page](https://www.youtube.com/playlist?list=PL0eGJygpmOH5xQuy8fpaOvKrenoCsWrKh) and copy the specific URL of the episode you want to download, then run for example:
+2. Set `GEMINI_API_KEY` variable (in `.env`) to your Google Gemini API key (https://aistudio.google.com/apikey).
 
-```bash
-python main.py "https://www.youtube.com/watch?v=LtcEtnM6e34"
-```
+3. Go to [Youtube playlist page](https://www.youtube.com/playlist?list=PL0eGJygpmOH5xQuy8fpaOvKrenoCsWrKh) and copy the specific URL of the episode you want to download, then run for example:
 
-If you want SRT translation in Polish, you can run:
+    ```bash
+    python main.py "https://www.youtube.com/watch?v=LtcEtnM6e34"
+    ```
 
-```bash
-python main.py "https://www.youtube.com/watch?v=LtcEtnM6e34" --language pl
-```
+    If you want SRT translation in Polish, you can run:
+
+    ```bash
+    python main.py "https://www.youtube.com/watch?v=LtcEtnM6e34" --language pl
+    ```
 
 ## Output
 
-The output will be saved in the `output` directory, with the following files:
+The output will be saved in the `output/{video_title}` directory, with the following files:
+
 - `transcription.json` - Transcription of the episode in JSON format.
 - `transcription.srt` - Transcription of the episode in SRT format.
 - `translation.srt` - Translation of the episode in SRT format.
@@ -67,8 +71,7 @@ Digital village is the strategic direction of rural revitalization.
 
 CCTV clearly states that it holds all copyrights to its programs (including news), and distribution without permission is prohibited. Use this project for educational and research purposes only.
 
-For more information, see the original CCTV statement (https://news.cctv.com/2017/04/26/ARTI9neH8KQH2RzzhkOjEsBZ170426.shtml
-).
+For more information, see the [original CCTV statement](https://news.cctv.com/2017/04/26/ARTI9neH8KQH2RzzhkOjEsBZ170426.shtml).
 
 ## License
 

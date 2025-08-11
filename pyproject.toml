@@ -1,0 +1,16 @@
+[project]
+name = "cctv-xinwen-lianbo-en"
+version = "0.1.0"
+description = "CCTV Xinwen Lianbo EN - Chinese video transcription and English translation tool"
+requires-python = ">=3.12"
+dependencies = [
+    "dotenv>=0.9.9",
+    "funasr>=1.2.6",
+    "google-genai>=1.29.0",
+    "pysrt>=1.1.2",
+    "rich>=14.1.0",
+    "typer>=0.16.0",
+]
+
+[project.scripts]
+transcribe = "main:app"

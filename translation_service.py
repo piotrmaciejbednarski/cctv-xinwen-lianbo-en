@@ -1,7 +1,11 @@
+import os
 from google import genai
 from google.genai import types
+from dotenv import load_dotenv
 
-client = genai.Client()
+load_dotenv()
+
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 def is_repetitive_text(text: str, min_repeat_length: int = 3, max_repetitions: int = 5) -> bool:
     """

@@ -43,42 +43,29 @@ def is_repetitive_text(text: str, min_repeat_length: int = 3, max_repetitions: i
 
     return False
 
-def translate_zh_to_en(text_zh: str) -> str:
+def translate_zh(text_zh: str, target_language: str = "en") -> str:
     """
-    Translate Chinese text to English using Google Gemini API
+    Translate Chinese text to target language using Google Gemini API
 
     Args:
         text_zh: Chinese text to translate
+        target_language: Target language code ('en' for English, 'pl' for Polish)
 
     Returns:
-        English translation
+        Translation in target language
     """
+    language_map = {
+        "en": "English",
+        "pl": "Polish"
+    }
+    
+    target_lang_name = language_map.get(target_language, "English")
+    
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=f"Translate into English (without abbreviations): {text_zh}",
+        contents=f"Translate into {target_lang_name} (without abbreviations): {text_zh}",
         config=types.GenerateContentConfig(
-            system_instruction="You are a precise and faithful translator from Chinese to English. Your task is to provide a single, direct translation without abbreviations, preserving the original meaning, proper nouns, and numerical values. Do not provide any alternative translations or additional text.",
-            temperature=0.5,
-            thinking_config=types.ThinkingConfig(thinking_budget=0)
-        ),
-    )
-    return str(response.text)
-
-def translate_zh_to_pl(text_zh: str) -> str:
-    """
-    Translate Chinese text to Polish using Google Gemini API
-
-    Args:
-        text_zh: Chinese text to translate
-
-    Returns:
-        Polish translation
-    """
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=f"Translate into Polish (without abbreviations): {text_zh}",
-        config=types.GenerateContentConfig(
-            system_instruction="You are a precise and faithful translator from Chinese to Polish. Your task is to provide a single, direct translation without abbreviations, preserving the original meaning, proper nouns, and numerical values. Do not provide any alternative translations or additional text.",
+            system_instruction=f"You are a precise and faithful translator from Chinese to {target_lang_name}. Your task is to provide a single, direct translation without abbreviations, preserving the original meaning, proper nouns, and numerical values. Do not provide any alternative translations or additional text.",
             temperature=0.5,
             thinking_config=types.ThinkingConfig(thinking_budget=0)
         ),
@@ -115,15 +102,11 @@ def translate_srt_file(input_srt: str, output_srt: str, language: str = "en"):
             skipped_count += 1
         else:
             try:
-                # Translate text based on specified language
-                translated = ""
-                if language == "en":
-                    translated = translate_zh_to_en(sub.text)
-                if language == "pl":
-                    translated = translate_zh_to_pl(sub.text)
+                # Translate text using unified function
                 if language not in ["en", "pl"]:
                     print(f"Unsupported language: {language}. Defaulting to English translation.")
-                    translated = translate_zh_to_en(sub.text)
+                    language = "en"
+                translated = translate_zh(sub.text, language)
                 sub.text = translated
             except Exception as e:
                 print(f"\nTranslation error: {e}")

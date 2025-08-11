@@ -2,6 +2,15 @@
 
 A Python project for Chinese-to-English translations (SRT subtitles) for each episode of CCTV's "Xinwen Lianbo" (「新闻联播」), a valuable resource for language learners and researchers.
 
+## Models Used
+
+- **Transcription**: FunASR Paraformer model (`paraformer-zh` with `fsmn-vad` and `ct-punc`)
+  - Specifically uses `manyeyes/paraformer-seaco-large-zh-timestamp-onnx-offline` for Chinese ASR
+  - Provides sentence-level timestamps and punctuation
+- **Translation**: Google Gemini 2.5 Flash model
+  - Supports Chinese to English and Chinese to Polish translation
+  - Uses system instructions for precise, faithful translation without abbreviations
+
 ## Dependencies
 
 - Python 3.8+

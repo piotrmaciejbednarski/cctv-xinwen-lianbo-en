@@ -13,6 +13,7 @@ manual_transcription
 *.mp3
 *.wav
 *.mp4
+*.mkv
 *.mp4.part
 *.webm
 .venv

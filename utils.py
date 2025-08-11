@@ -267,3 +267,47 @@ def get_video_title(url: str) -> str:
     except Exception as e:
         print(f"Warning: Could not get video title: {e}")
         return "unknown_video"
+
+
+def shift_srt_timestamps(input_srt: str, output_srt: str, offset_seconds: float = 18.0):
+    """
+    Shift only subtitles that start during intro period (before offset_seconds)
+    
+    Args:
+        input_srt: Path to input SRT file
+        output_srt: Path to output SRT file
+        offset_seconds: Intro duration in seconds - only subtitles starting before this will be shifted
+    """
+    import pysrt
+    
+    try:
+        subs = pysrt.open(input_srt, encoding='utf-8')
+    except Exception as e:
+        print(f"Error reading SRT file: {e}")
+        return False
+    
+    shifted_count = 0
+    
+    # Only shift subtitles that start during intro period
+    for sub in subs:
+        start_seconds = sub.start.ordinal / 1000.0  # Convert to seconds
+        
+        # Only shift if subtitle starts during intro (before offset_seconds)
+        if start_seconds < offset_seconds:
+            # Shift by offset
+            start_ms = sub.start.ordinal + int(offset_seconds * 1000)
+            end_ms = sub.end.ordinal + int(offset_seconds * 1000)
+            
+            # Update timestamps
+            sub.start = pysrt.SubRipTime.from_ordinal(start_ms)
+            sub.end = pysrt.SubRipTime.from_ordinal(end_ms)
+            shifted_count += 1
+    
+    try:
+        subs.save(output_srt, encoding='utf-8')
+        print(f"Shifted {shifted_count} subtitles that started during intro period")
+        print(f"Shifted SRT saved to: {output_srt}")
+        return True
+    except Exception as e:
+        print(f"Error saving shifted SRT file: {e}")
+        return False

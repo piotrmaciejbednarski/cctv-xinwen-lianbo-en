@@ -1,4 +1,4 @@
-# CCTV-Xinwen-Lianbo-EN
+# cctv-xinwen-lianbo-en
 
 A Python project for Chinese-to-English translations (SRT subtitles) for each episode of CCTV's "Xinwen Lianbo" (「新闻联播」), a valuable resource for language learners and researchers.
 
@@ -32,16 +32,42 @@ A Python project for Chinese-to-English translations (SRT subtitles) for each ep
 
 2. Set `GEMINI_API_KEY` variable (in `.env`) to your Google Gemini API key (https://aistudio.google.com/apikey).
 
-3. Go to [Youtube playlist page](https://www.youtube.com/playlist?list=PL0eGJygpmOH5xQuy8fpaOvKrenoCsWrKh) and copy the specific URL of the episode you want to download, then run for example:
+3. Go to [Youtube playlist page of CCTV](https://www.youtube.com/playlist?list=PL0eGJygpmOH5xQuy8fpaOvKrenoCsWrKh) and copy the specific URL of the episode you want to download, then run for example:
 
     ```bash
-    uv run main.py "https://www.youtube.com/watch?v=LtcEtnM6e34"
+    uv run main.py "YOUTUBE_VIDEO_URL"
     ```
 
     If you want SRT translation in Polish, you can run:
 
     ```bash
-    uv run main.py "https://www.youtube.com/watch?v=LtcEtnM6e34" --language pl
+    uv run main.py "YOUTUBE_VIDEO_URL" --language pl
+    ```
+
+4. If you want to generate MP4 video with embedded subtitles, you can run (make sure you have `ffmpeg` installed):
+
+    ```bash
+    uv run main.py generate-video "YOUTUBE_VIDEO_URL"
+    ```
+
+    Or using custom parameters:
+
+    ```bash
+    uv run main.py generate-video "YOUTUBE_VIDEO_URL" --srt transcription.srt --font-size 28 --font-color yellow
+    ```
+
+    By default it automatically shifts subtitles by 18 seconds to synchronize with the intro, but you can change this with the `--offset` parameter.
+
+5. If you want to generate translations without running the transcription step (if you already have `transcription.srt` file), you can run:
+
+    ```bash
+    uv run main.py translate output/{video_title} --language en
+    ```
+
+    Or for Polish translation:
+
+    ```bash
+    uv run main.py translate output/{video_title} --language pl
     ```
 
 ## Output

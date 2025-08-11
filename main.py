@@ -6,7 +6,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from translation_service import translate_srt_file
-from utils import get_video_title, normalize_segments, write_srt_pretty
+from utils import get_video_title, normalize_segments, write_srt_pretty, shift_srt_timestamps
 
 app = typer.Typer()
 
@@ -176,6 +176,148 @@ def transcribe(
 
     elapsed_time = time.time() - start_time
     print(f"Translation completed in {timedelta(seconds=elapsed_time)}")
+
+
+@app.command()
+def translate(
+    transcription_dir: str = typer.Argument(..., help="Directory containing transcription.srt file"),
+    language: str = typer.Option("en", "--language", "-l", help="Language code ('en', 'pl' for English or Polish)"),
+):
+    """Translate existing transcription SRT file without running transcription"""
+    
+    transcription_path = Path(transcription_dir)
+    
+    if not transcription_path.exists():
+        print(f"Error: Directory '{transcription_dir}' does not exist")
+        return
+    
+    if not transcription_path.is_dir():
+        print(f"Error: '{transcription_dir}' is not a directory")
+        return
+    
+    # Change to the transcription directory
+    original_cwd = Path.cwd()
+    os.chdir(transcription_path)
+    print(f"Working directory: {transcription_path.absolute()}")
+    
+    try:
+        # Check if transcription.srt exists
+        transcription_srt = Path("transcription.srt")
+        if not transcription_srt.exists():
+            print("Error: transcription.srt not found in directory")
+            return
+    
+        print(f"Found transcription file: {transcription_srt.name}")
+        
+        # Translation
+        start_time = time.time()
+        print(f"Starting translation to {language}...")
+        
+        output_file = "translation.srt"
+        translate_srt_file("transcription.srt", output_file, language)
+        
+        elapsed_time = time.time() - start_time
+        print(f"Translation completed in {timedelta(seconds=elapsed_time)}")
+        print(f"Translation saved to: {output_file}")
+        
+    finally:
+        os.chdir(original_cwd)
+
+
+@app.command()
+def generate_video(
+    url: str = typer.Argument(..., help="YouTube URL to download video"),
+    srt_file: str = typer.Option("translation.srt", "--srt", "-s", help="SRT subtitle file to embed"),
+    output_dir: str = typer.Option("output", "--output-dir", "-o", help="Base output directory"),
+    font_size: int = typer.Option(24, "--font-size", "-f", help="Subtitle font size"),
+    font_color: str = typer.Option("white", "--font-color", "-c", help="Subtitle font color"),
+    outline_color: str = typer.Option("black", "--outline-color", help="Subtitle outline color"),
+    offset_seconds: float = typer.Option(18.0, "--offset", help="Subtitle timing offset in seconds (to skip intro)"),
+):
+    """Generate MP4 video with embedded SRT subtitles"""
+    
+    # Get video title and setup output directory
+    video_title = get_video_title(url)
+    print(f"Video title: {video_title}")
+    
+    output_path = Path(output_dir) / video_title
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    original_cwd = Path.cwd()
+    os.chdir(output_path)
+    print(f"Working directory: {output_path.absolute()}")
+    
+    try:
+        # Check if SRT file exists
+        srt_path = Path(srt_file)
+        if not srt_path.exists():
+            print(f"Error: SRT file '{srt_file}' not found in {output_path}")
+            print("Available files:")
+            for f in output_path.glob("*.srt"):
+                print(f"  - {f.name}")
+            return
+        
+        print(f"Using SRT file: {srt_path.name}")
+        
+        # Shift SRT timestamps to account for intro
+        shifted_srt = f"{srt_path.stem}_shifted{srt_path.suffix}"
+        print(f"Shifting subtitles by {offset_seconds} seconds...")
+        if not shift_srt_timestamps(srt_file, shifted_srt, offset_seconds):
+            print("Error: Failed to shift subtitle timestamps")
+            return
+        
+        # Download video
+        video_filename = f"{video_title}.webm"
+        if not Path(video_filename).exists():
+            print("Downloading video...")
+            download_cmd = f'yt-dlp --format "best[height<=720]" --output "{video_filename}" "{url}"'
+            result = os.system(download_cmd)
+            if result != 0:
+                print("Error: Failed to download video")
+                return
+        else:
+            print(f"Video already exists: {video_filename}")
+        
+        # Generate video with subtitles using ffmpeg
+        output_video = f"{video_title}_with_subtitles.mp4"
+        print(f"Generating video with subtitles: {output_video}")
+        
+        # FFmpeg command to embed subtitles (use shifted SRT)
+        ffmpeg_cmd = (
+            f'ffmpeg -y -i "{video_filename}" -vf '
+            f'"subtitles={shifted_srt}:force_style=\'FontSize={font_size},'
+            f'PrimaryColour=&H{_color_to_hex(font_color)}&,'
+            f'OutlineColour=&H{_color_to_hex(outline_color)}&,Outline=2\'" '
+            f'-c:a copy "{output_video}"'
+        )
+        
+        print("Running ffmpeg...")
+        result = os.system(ffmpeg_cmd)
+        
+        if result == 0:
+            print(f"✓ Video with subtitles generated successfully: {output_video}")
+            print(f"Output path: {output_path / output_video}")
+        else:
+            print("Error: Failed to generate video with subtitles")
+            
+    finally:
+        os.chdir(original_cwd)
+
+
+def _color_to_hex(color_name: str) -> str:
+    """Convert color name to BGR hex for ffmpeg subtitles"""
+    color_map = {
+        "white": "FFFFFF",
+        "black": "000000", 
+        "red": "0000FF",
+        "green": "00FF00",
+        "blue": "FF0000",
+        "yellow": "00FFFF",
+        "cyan": "FFFF00",
+        "magenta": "FF00FF",
+    }
+    return color_map.get(color_name.lower(), "FFFFFF")
+
 
 if __name__ == "__main__":
     app()

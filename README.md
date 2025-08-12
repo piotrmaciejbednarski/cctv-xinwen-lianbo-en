@@ -20,6 +20,10 @@ Transcription model are runned locally using FunASR, while translation is done v
 
 All models are made by Chinese developers, and are optimized for Chinese language processing.
 
+## Blog post
+
+If you want more information about this project, look at my [blog post](https://bednarskiwsieci.pl/en/blog/how-i-built-a-pipeline-for-automatically-translating-chinese-news/). It describes how I built this pipeline, the challenges I faced, and how I solved them. It also includes some insights into the models used and their performance.
+
 ## Dependencies
 
 - Python 3.8+

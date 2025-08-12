@@ -16,7 +16,7 @@ A Python project for Chinese-to-English translations (SRT subtitles) for each ep
 
 Transcription model are runned locally using FunASR, while translation is done via OpenRouter API.
 
-[Deepseek V3-0324 price](https://openrouter.ai/deepseek/deepseek-chat-v3-0324) is $0.18 per 1M input tokens, and $0.72 per 1M output tokens (as of August 2025).
+[Deepseek V3-0324 price](https://openrouter.ai/deepseek/deepseek-chat-v3-0324) is $0.18 per 1M input tokens, and $0.72 per 1M output tokens (as of August 2025). For full translation of an episode, it costs around $0.007 to $0.008 per episode.
 
 All models are made by Chinese developers, and are optimized for Chinese language processing.
 

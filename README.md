@@ -26,7 +26,7 @@ If you want more information about this project, look at my [blog post](https://
 
 ## Dependencies
 
-- Python 3.8+
+- Python 3.12+
 - `yt-dlp`, `uv` and `ffmpeg` installed in **global environment**
 - `funasr` (transcription using Chinese ASR model)
 - `dotenv` (for environment variable management)
